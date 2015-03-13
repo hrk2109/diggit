@@ -1,0 +1,14 @@
+Package: diggit
+Version: 0.99.2
+Date: 2014-08-22
+Title: Inference of Genetic Variants Driving Cellular Phenotypes
+Author: Mariano J Alvarez <reef103@gmail.com>
+Maintainer: Mariano J Alvarez <reef103@gmail.com>
+Depends: R (>= 3.0.2), Biobase, methods
+Imports: ks, viper(>= 1.3.1), parallel
+Suggests: diggitdata
+Description: Inference of Genetic Variants Driving Cellullar Phenotypes
+        by the DIGGIT algorithm
+License: GPL (>=2)
+biocViews: SystemsBiology, NetworkEnrichment, GeneExpression,
+        FunctionalPrediction, GeneRegulation

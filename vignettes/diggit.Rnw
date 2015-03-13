@@ -1,0 +1,229 @@
+\documentclass{article}
+\usepackage{fullpage}
+\usepackage{hyperref}
+\usepackage{fixltx2e}
+%\VignetteIndexEntry{Using DIGGIT}
+
+\title{Using DIGGIT, a package for Infering Genetic Variants Driving Cellular Phenotypes}
+\author{James Chen, Mariano J. Alvarez, Andrea Califano\\Department of Systems Biology, Columbia University, New York, USA}
+\date{\today}
+
+\begin{document}
+\SweaveOpts{concordance=TRUE}
+\maketitle
+<<echo=FALSE, results=hide>>=
+# Initialization
+cores <- 3*(Sys.info()[1]!="Windows")+1
+@
+%-----------
+\section{Overview of DIGGIT}\label{sec:overview}
+Identification of somatic mutations and germline variants that are determinants of cancer and other complex human diseases/traits (driver mutations) is mostly performed on a statistical basis, using models of genomic evolution \cite{Frattini2013} or mutational bias \cite{Lawrence2013}, to increase the significance of individual events.
+Achieving appropriate statistical power, however, requires large effect sizes or large cohorts due to multiple hypothesis testing correction \cite{Califano2012}.
+In addition, these approaches are not designed to provide mechanistic insight.
+As a result, many disease risk determinants, such as apolipoprotein E, were discovered long before they were mechanistically elucidated \cite{Liu2013}.
+
+Network-based analyses have recently emerged as a highly effective framework for the discovery of Master Regulator (MR) genes that are functional disease drivers \cite{Aytes2014,Carro2010b,Lefebvre2010,Piovan2013}.
+Here, we present the R implementation of DIGGIT (Driver-gene Inference by Genetical-Genomic Information Theory), an algorithm to identify genetic determinants of disease by systematically exploring regulatory/signaling networks upstream of MR genes.
+This collapses the number of testable hypotheses and provides regulatory clues to help elucidate associated mechanisms.
+We have applied DIGGIT to identify causal genetic determinants of the mesenchymal subtype of human glioma \cite{Chen2014}.
+%--------
+\section{Citation}
+Chen JC, Alvarez MJ, Talos F, Dhruv H, Rieckhof GE, Iyer A, Diefes KL, Aldape K, Berens M, Shen MM, Califano A. Identification of Causal Genetic Drivers of Human Disease through Systems-Level Analysis of Regulatory Networks, Cell (2014) 159(2):402-14. \url{http://dx.doi.org/10.1016/j.cell.2014.09.021}.
+%--------
+
+\section{Installation of \emph{diggit} package}
+In order to install the \emph{diggit} package, the user must first install R (\url{http://www.r-project.org}). After that, \emph{diggit} and the required data package for the examples and this vignette (\emph{diggitdata}) can be installed with:
+
+<<echo=TRUE, eval=FALSE, results=hide>>=
+source("http://bioconductor.org/biocLite.R")
+biocLite(c("diggitdata", "diggit"))
+@
+
+%-------------
+\section{Example session to analyze the data provided by the \emph{diggitdata} package}
+
+\subsection{Getting started}
+After installing \emph{diggit} and \emph{diggitdata} packages, diggit can be loaded by
+
+<<echo=TRUE, results=hide>>=
+library(diggit)
+@
+
+\subsubsection{The \emph{diggitdata} data package}
+The data distributed in the \emph{diggitdata} package is required to execute the code provided in this vignette. The package consists on several datasets and regulatory networks contained in five R-image files:
+\begin{description}
+\item[gbm.expression] Normalized human glioma expression data for 245 samples from TCGA, including metadata indicating tumor subtype, in an object of class ExpressionSet (see Biobase package from Bioconductor for a description of the ExpressionSet class).
+\item[gbm.cnv] Normalized copy number variation data for 230 samples from TCGA
+\item[gbm.cnv.normal] Normalized copy number variation data for 33 normal (blood) samples from TCGA
+\item[gbm.aracne] Transcriptional regulatory network assembled by the ARACNe \cite{Margolin2006} algorithm from glioma expression data
+\item[gbm.mindy] Post-translational regulatory network assembled by the MINDy \cite{Wang2009a} algorithm, limited to three transcription factors: STAT3, CEBPB and CEBPD.
+\end{description}
+
+\subsection{Loading the data and generating a diggit-class object}
+The data provided in the \emph{diggitdata} package can be loaded into memory with:
+<<echo=TRUE, results=hide>>=
+data(gbm.expression, package="diggitdata")
+data(gbm.cnv, package="diggitdata")
+data(gbm.aracne, package="diggitdata")
+data(gbm.mindy, package="diggitdata")
+@
+
+In order to reduce the computer time, we are going to consider only 1,000 genes for the CNV analysis.
+<<echo=TRUE, results=hide>>=
+genes <- intersect(rownames(gbmExprs), rownames(gbmCNV))[1:1000]
+gbmCNV <- gbmCNV[match(genes, rownames(gbmCNV)), ]
+@
+
+The diggit-class objects are containers for both the input data and the output results from the diggit algorithm.
+This allows for the individual results of each step of the pipeline to be stored in an appropriate format.
+This object will be updated sequentially as each step of DIGGIT is completed, as shown below.
+
+We can create an object of class ``diggit'' and store the required data with:
+<<echo=TRUE, results=verbatim>>=
+dobj <- diggitClass(expset=gbmExprs, cnv=gbmCNV, regulon=gbmTFregulon, mindy=gbmMindy)
+dobj
+@
+
+\subsection{Inferring functional copy number variation (fCNV)}
+We consider a CNV as functional if it is significantly associated with the expression levels of the altered (amplified/deleted) gene.
+The \texttt{fCNV()} function computes such association and store the results in the \emph{diggit} object.
+This is done by measuring the statistical association between gene expression and gene copy number, which can be done either by correlation analysis,
+<<echo=TRUE, results=verbatim>>=
+dobj <- fCNV(dobj, method="spearman", verbose=FALSE)
+diggitFcnv(dobj)[1:5]
+head(dobj, 5)$fcnv
+@
+or by mutual information (MI),
+<<echo=TRUE, results=verbatim>>=
+RNGkind("L'Ecuyer-CMRG")
+set.seed(1)
+mc.reset.stream()
+dobj <- fCNV(dobj, method="mi", cores=cores, verbose=FALSE)
+diggitFcnv(dobj)[1:5]
+head(dobj, 5)$fcnv
+@
+The first three lines of code are meant to set the seed for random numbers generation to a constant.
+This is necessary to make the permutation process required for computing MI statistical significance reproducible.
+As seen in the code above, the fCNV slot from an object of class diggit can be retrieved by the function \texttt{diggitFcnv()}, while the top \emph{n} most significant fCNVs can be reported using the function \texttt{head()}.
+In the example, we reported the top 5 most significant fCNVs.
+Figure \ref{fig:fcnv} shows the association between CNV and expression for KLHL9 and CEBPD, with correlation and MI analysis p-values indicated on top of the figure.
+<<label=fcnv, include=FALSE, fig=TRUE, echo=FALSE, height=5, width=10>>=
+tmp.cnv <- diggitCNV(dobj)
+tmp.exp <- exprs(exprs(dobj))
+samp <- intersect(colnames(tmp.cnv), colnames(tmp.exp))
+tmp.cnv <- tmp.cnv[, match(samp, colnames(tmp.cnv))]
+tmp.exp <- tmp.exp[, match(samp, colnames(tmp.exp))]
+res.cor <- diggitFcnv(fCNV(dobj, method="spearman"))
+par(mfrow=c(1, 2))
+plot(tmp.cnv["KLHL9", ], tmp.exp["KLHL9", ], pch=20, cex=.8, xlab="KLHL9 CNV", ylab="KLHL9 Expression", main=paste("Correlation: ", signif(res.cor["KLHL9"], 2), ",   MI: ", signif(diggitFcnv(dobj)["KLHL9"], 2), sep=""), cex.lab=1.2, font.lab=2)
+abline(v=0, lty=3)
+plot(tmp.cnv["CEBPD", ], tmp.exp["CEBPD", ], pch=20, cex=.8, xlab="CEBPD CNV", ylab="CEBPD Expression", main=paste("Correlation: ", signif(res.cor["CEBPD"], 2), ",   MI: ", signif(diggitFcnv(dobj)["CEBPD"], 2), sep=""), cex.lab=1.2, font.lab=2)
+abline(v=0, lty=3)
+@
+\begin{figure}
+    \begin{center}
+        \includegraphics[width=.8\textwidth]{diggit-fcnv}
+    \end{center}
+    \caption{\label{fig:fcnv}Scatter-plots showing the association between CNV and gene expression for KLHL9 and CEBPD. Correlation and MI p-values are shown over each plot.}
+\end{figure}
+
+\subsection{Master Regulator Analysis}
+Master Regulators (MR) can be inferred with the \texttt{marina()} function.
+For this example, we infer the MR for the glioma mesenchymal subtype when compared with the proneural subtype.
+The subtype information is included as metadata in an AnnotatedDataFrame object for this example, which is contained in a Bioconductor ExpressionSet object, together with the expression profile data.
+Detailed documentation about the ExpressionSet objects can be obtained from the \emph{Biobase} package (Bioconductor).
+
+To correctly leverage this information, we must indicate the metadata column containing the tumor subtype information and the labels for the mesenchymal (MES) and proneural (PN) classes by the parameters \texttt{pheno}, \texttt{group1} and \texttt{group2} of the \texttt{marina()} function, as shown below:
+<<echo=TRUE, results=verbatim>>=
+set.seed(1)
+mc.reset.stream()
+dobj <- marina(dobj, pheno="subtype", group1="MES", group2="PN", cores=cores, verbose=FALSE)
+head(dobj, 5)$mr
+@
+
+\subsection{Activity quantitative trait loci (aQTL)}
+fCNVs are then analyzed to identify those whose alteration is predictive of MR activity, similar to expression quantitative trait loci (eQTL) discovery \cite{Yang2009}.
+Activity quantitative trait loci (aQTL) are inferred based on the statistical association between copy number and MR activity.
+First, single-sample MR activity is inferred using the Virtual Inference of Protein-activity by Enriched Regulon analysis (VIPER) algorithm (see \emph{viper} package from Bioconductor for further details).
+Then, the association between the inferred protein activity and CNVs can be estimated by correlation or MI analysis.
+Both steps are implemented by the \texttt{aqtl()} function. In the example below, the aQTL for the synergistic regulators of the glioma mesenchymal subtype, CEBPD and STAT3 \cite{Carro2010b}, is computed using MI.
+
+<<echo=TRUE, results=verbatim>>=
+set.seed(1)
+mc.reset.stream()
+dobj <- aqtl(dobj, mr=c("CEBPD", "STAT3"), method="mi", cores=cores, verbose=FALSE)
+head(dobj, 5)$aqtl
+@
+
+\subsection{Conditional association analysis}
+CNVs can span multiple genes, resulting in statistical dependencies equivalent to linkage disequilibrium in classical genetics.
+Conditional analysis helps assess whether association of a F-CNV (fCNV\textsubscript{i}) with the phenotype may be an artifact resulting from its physical proximity to a bona fide driver F-CNV (fCNV\textsubscript{j}), in which case conditional association of fCNV\textsubscript{i} with the phenotype (i.e., using only fCNV\textsubscript{j}WT samples) should not be statistically significant, thus removing such artifacts.
+Conditional analysis is performed by computing the association between samples harboring CNVs in gene \emph{a} and sample groups (tumor subtypes in our example), after conditioning for the presence of CNVs in gene \emph{b}. Because the association analysis is performed by Fisher's exact test (FET), the CNV continuous data should be discretized using an appropiate threshold.
+This threshold can be obtained from the analysis of normal (blood in this example) samples.
+We can estimate an appropiate threshold at $\alpha = 0.05$ as follows,
+
+<<echo=TRUE, results=verbatim>>=
+data(gbm.cnv.normal, package="diggitdata")
+cnvthr <- quantile(as.vector(gbmCNVnormal), c(.025, .975), na.rm=TRUE)
+@
+
+The conditional analysis can be performed then with the \texttt{conditional()} function:
+<<echo=TRUE, results=verbatim>>=
+dobj <- conditional(dobj, pheno="subtype", group1="MES", group2="PN", mr="STAT3",
+                    cnv=cnvthr, cores=cores, verbose=FALSE)
+dobj
+@
+
+The conditional analysis results can be displayed with the \texttt{plot()} function, as shown below and in figure \ref{fig:conditional}, and summarized with the function \texttt{summary()}:
+
+<<label=conditional, fig=TRUE, include=FALSE, echo=TRUE, results=verbatim, width=8, height=7>>=
+plot(dobj, "STAT3", cluster="2")
+summary(dobj)
+@
+
+\begin{figure}
+    \begin{center}
+        \includegraphics[width=.8\textwidth]{diggit-conditional}
+    \end{center}
+    \caption{\label{fig:conditional}Conditional association analysis for a cluster of CNVs associated with STAT3 activity. The heatmap shows $-log_{10}(p)$ for the association between CNV and tumor subtype (rows) after conditioning on each gene (column).}
+\end{figure}
+
+\subsection{Limiting the analysis to upstream post-translational modulators}
+To increase the power of the test, the aQTL analysis can be restricted to evaluate only upstream post-translational modulators of the MRs, as inferred by the MINDy algorithm \cite{Wang2009a}.
+The post-translational modulators for STAT3, CEBPB and CEBPD in GBM have been inferred by the CINDy algorithm \cite{Giorgi2014} from 3,540 candidate genes, including signaling pathway-associated citoplasmic proteins and membrane receptors, and distributed as part of the \emph{diggitdata} package.
+We can use the information provided by this post-translational interactome to reduce the list of candidate potential upstream modulators, to the ones identified by the CINDy algorithm, by setting the \emph{mindy} parameter of the \emph{aqtl} function to TRUE:
+
+<<echo=TRUE, results=verbatim>>=
+set.seed(1)
+mc.reset.stream()
+dobj <- aqtl(dobj, mr=c("CEBPD", "STAT3"), method="mi", mindy=TRUE, cores=cores, verbose=FALSE)
+dobj <- conditional(dobj, pheno="subtype", group1="MES", group2="PN", mr="STAT3",
+                    cnv=cnvthr, verbose=FALSE)
+summary(dobj)
+@
+
+\section{Session information}
+<<echo=TRUE, results=verbatim>>=
+sessionInfo()
+@
+%--------
+\clearpage
+\section{References}
+\begin{thebibliography}{00}
+\bibitem{Frattini2013} Frattini,V. et al. (2013) The integrated landscape of driver genomic alterations in glioblastoma. Nat. Genet., 45, 1141-9.
+\bibitem{Lawrence2013} Lawrence,M.S. et al. (2013) Mutational heterogeneity in cancer and the search for new cancer-associated genes. Nature, 499, 214-8.
+\bibitem{Califano2012} Califano, A., et al. (2012) Leveraging models of cell regulation and GWAS data in integrative network-based association studies. Nat. Genet. 44, 841-7.
+\bibitem{Liu2013} Liu, C.C., et al. (1023) Apolipoprotein E and Alzheimer disease: risk, mechanisms and therapy. Nat. rev. Neurol. 9, 106-18.
+\bibitem{Aytes2014} Aytes,A. et al. (2014) Cross-Species Regulatory Network Analysis Identifies a Synergistic Interaction between FOXM1 and CENPF that Drives Prostate Cancer Malignancy. Cancer Cell, 25, 638-51.
+\bibitem{Carro2010b} Carro,M.S. et al. (2010) The transcriptional network for mesenchymal transformation of brain tumours. Nature, 463, 318-25.
+\bibitem{Lefebvre2010} Lefebvre,C. et al. (2010) A human B-cell interactome identifies MYB and FOXM1 as master regulators of proliferation in germinal centers. Mol. Syst. Biol., 6, 377.
+\bibitem{Piovan2013} Piovan,E. et al. (2013) Direct reversal of glucocorticoid resistance by AKT inhibition in acute lymphoblastic leukemia. Cancer Cell, 24, 766-76.
+\bibitem{Chen2014} Chen JC, et al. (2014) Identification of causal genetic drivers of human disease through systems-level analysis of regulatory networks. Cell (In Press).
+\bibitem{Margolin2006} Margolin,A.A. et al. (2006) ARACNE: an algorithm for the reconstruction of gene regulatory networks in a mammalian cellular context. BMC Bioinformatics, 7 Suppl 1, S7.
+\bibitem{Wang2009a} Wang,K. et al. (2009) Genome-wide identification of post-translational modulators of transcription factor activity in human B cells. Nat. Biotechnol., 27, 829-39.
+\bibitem{Yang2009} Yang,X. et al. (2009) Validation of candidate causal genes for obesity that affect shared metabolic pathways and networks. Nat. Genet., 41, 415-23.
+\bibitem{Giorgi2014} Giorgi FM, Lopez G, Woo JH, Bisikirska B, Califano A, Bansal M. Inferring protein modulation from gene expression data using conditional mutual information. PLoS One. 2014;9(10):e109569.
+\end{thebibliography}
+%--------
+\end{document}
+
