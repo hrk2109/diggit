@@ -1,7 +1,6 @@
 #' @import methods
 #' @import Biobase
 #' @importFrom parallel mclapply
-#' @importFrom parallel mc.reset.stream
 #' @importFrom ks Hpi
 #' @importFrom ks kde
 #' @importFrom viper viper

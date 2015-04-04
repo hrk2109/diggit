@@ -97,7 +97,9 @@ or by mutual information (MI),
 <<echo=TRUE, results=verbatim>>=
 RNGkind("L'Ecuyer-CMRG")
 set.seed(1)
-mc.reset.stream()
+if(tools:::.OStype() == "unix") {
+    mc.reset.stream()
+}
 dobj <- fCNV(dobj, method="mi", cores=cores, verbose=FALSE)
 diggitFcnv(dobj)[1:5]
 head(dobj, 5)$fcnv
@@ -136,7 +138,10 @@ Detailed documentation about the ExpressionSet objects can be obtained from the 
 To correctly leverage this information, we must indicate the metadata column containing the tumor subtype information and the labels for the mesenchymal (MES) and proneural (PN) classes by the parameters \texttt{pheno}, \texttt{group1} and \texttt{group2} of the \texttt{marina()} function, as shown below:
 <<echo=TRUE, results=verbatim>>=
 set.seed(1)
-mc.reset.stream()
+library(parallel)
+if(tools:::.OStype() == "unix") {
+    mc.reset.stream()
+}
 dobj <- marina(dobj, pheno="subtype", group1="MES", group2="PN", cores=cores, verbose=FALSE)
 head(dobj, 5)$mr
 @
@@ -150,7 +155,9 @@ Both steps are implemented by the \texttt{aqtl()} function. In the example below
 
 <<echo=TRUE, results=verbatim>>=
 set.seed(1)
+if(tools:::.OStype() == "unix") {
 mc.reset.stream()
+}
 dobj <- aqtl(dobj, mr=c("CEBPD", "STAT3"), method="mi", cores=cores, verbose=FALSE)
 head(dobj, 5)$aqtl
 @
@@ -195,7 +202,9 @@ We can use the information provided by this post-translational interactome to re
 
 <<echo=TRUE, results=verbatim>>=
 set.seed(1)
-mc.reset.stream()
+if(tools:::.OStype() == "unix") {
+    mc.reset.stream()
+}
 dobj <- aqtl(dobj, mr=c("CEBPD", "STAT3"), method="mi", mindy=TRUE, cores=cores, verbose=FALSE)
 dobj <- conditional(dobj, pheno="subtype", group1="MES", group2="PN", mr="STAT3",
                     cnv=cnvthr, verbose=FALSE)
