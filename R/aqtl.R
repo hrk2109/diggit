@@ -57,8 +57,9 @@ setMethod("aqtl", c(x="diggit"), function(x, mr=.01, mr.adjust=c("none", "fdr", 
     }
     else {
         regul <- diggitRegulon(x)
-        regul <- regul[names(regul) %in% mr]
+#         regul <- regul[names(regul) %in% mr]
         act <- viper(exprs(exprs(x)), regul, method="scale", eset.filter=FALSE, cores=cores, verbose=verbose)
+        act <- filterRowMatrix(act, rownames(act) %in% mr)
         x@viper <- act
     }
 # aQTLs
@@ -72,7 +73,9 @@ setMethod("aqtl", c(x="diggit"), function(x, mr=.01, mr.adjust=c("none", "fdr", 
     }
     else mi <- correlation(t(act), t(cnv), method=method, pairwise=FALSE)
 # Generate the output diggit object
-    x@aqtl <- mi$p.value
+    tmp <- mi$p.value
+    if (!is(tmp, "matrix")) tmp <- matrix(tmp, length(tmp), 1, dimnames=list(names(tmp), ""))
+    x@aqtl <- tmp
     if (mindy) x <- mindyFiltering(x, mr=mr, mr.adjust=mr.adjust)
     return(x)
 })

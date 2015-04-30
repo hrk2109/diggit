@@ -32,6 +32,12 @@ mutualInfo <- function(x, y=NULL, per=0, pairwise=FALSE, bw=100, cores=1, verbos
     pb <- NULL
     if (verbose) message("Estimating kernel bandwidth...")
     if (is.matrix(x)) {
+        if (ncol(x)==1) x <- x[, 1]
+    }
+    if (is.matrix(y)) {
+        if (ncol(y)==1) y <- y[, 1]
+    }
+    if (is.matrix(x)) {
         x <- qnorm(apply(x, 2, rank)/(nrow(x)+1))
         if (is.null(y)) {
             h <- min(choose(ncol(x), 2), bw)
