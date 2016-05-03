@@ -1,0 +1,4 @@
+New for version 0.99.1
+======================
+* Added support for multiple core computing through parallel package
+
