@@ -391,20 +391,24 @@ cortest <- function (r, n, alternative = "two.sided")
 #' This function generates an empirical null model that computes a normalized statistics and p-value
 #' 
 #' @param dnull Numerical vector representing the null model
-#' @param symmetric Logical, whether the distribution should be treated as symmetric around zero and only one tail should be approximated
+#' @param symmetric Logical, whether the distribution should betreated as symmetric around zero and only one tail should be approximated
+#' @param n Integer indicating the number of points to evaluate the empirical cummulative probability function
 #' @return function with two parameters, \code{x} and \code{alternative}
 
-aecdf <- function(dnull, symmetric=FALSE) {
+aecdf <- function(dnull, symmetric=FALSE, n=100) {
     dnull <- dnull[is.finite(dnull)]
     if (symmetric) {
         iqr <- quantile(abs(dnull), c(.5, 1-5/length(dnull)))
-        pd <- ecdf(abs(dnull))
-        a <- list(x=knots(pd), y=pd(knots(pd)))
-        fit <- lm(y~0+x, data=list(x=a$x[length(a$x)-(15:4)]-iqr[2], y=log(1-pd(iqr[2]))-log(1-a$y[length(a$x)-(15:4)])))
+        epd <- ecdf(abs(dnull))
+        a <- list(x=knots(epd), y=epd(knots(epd)))
+        fit <- lm(y~0+x, data=list(x=a$x[length(a$x)-(15:4)]-iqr[2], y=log(1-epd(iqr[2]))-log(1-a$y[length(a$x)-(15:4)])))
+        val <- seq(0, iqr[2], length=n)
+        pd <- approxfun(val, epd(val), method="linear", yleft=0, rule=2)
         dnull <- function(x, alternative=c("two.sided", "greater", "less")) {
             alternative <- match.arg(alternative)
             x1 <- abs(x)
             p <- exp(log(1-pd(iqr[2]))-predict(fit, list(x=x1-iqr[2])))
+            p[!is.finite(p)] <- 1
             p <- p * (x1>iqr[2]) + (1-pd(x1)) * (x1<=iqr[2])
             nes <- qnorm(p/2, lower.tail=F)*sign(x)
             switch(alternative,
@@ -418,14 +422,18 @@ aecdf <- function(dnull, symmetric=FALSE) {
         return(dnull)
     }
     iqr <- quantile(dnull, c(5/length(dnull), .5, 1-5/length(dnull)))
-    pd <- ecdf(dnull)
-    a <- list(x=knots(pd), y=pd(knots(pd)))
-    fit1 <- lm(y~0+x, data=list(x=a$x[5:14]-iqr[1], y=log(pd(iqr[1]))-log(a$y[5:14])))
-    fit2 <- lm(y~0+x, data=list(x=a$x[length(a$x)-(15:4)]-iqr[3], y=log(1-pd(iqr[3]))-log(1-a$y[length(a$x)-(15:4)])))
+    epd <- ecdf(dnull)
+    a <- list(x=knots(epd), y=epd(knots(epd)))
+    fit1 <- lm(y~0+x, data=list(x=a$x[5:14]-iqr[1], y=log(epd(iqr[1]))-log(a$y[5:14])))
+    fit2 <- lm(y~0+x, data=list(x=a$x[length(a$x)-(15:4)]-iqr[3], y=log(1-epd(iqr[3]))-log(1-a$y[length(a$x)-(15:4)])))
+    val <- seq(iqr[1], iqr[3], length=n)
+    pd <- approxfun(val, epd(val), method="linear", rule=2)
     dnull <- function(x, alternative=c("two.sided", "greater", "less")) {
         alternative <- match.arg(alternative)
         p1 <- exp(log(pd(iqr[1]))-predict(fit1, list(x=x-iqr[1])))
         p2 <- exp(log(1-pd(iqr[3]))-predict(fit2, list(x=x-iqr[3])))
+        p1[!is.finite(p1)] <- 1
+        p2[!is.finite(p2)] <- 1
         p <- p1*(x<iqr[1]) + p2*(x>iqr[3]) + pd(x)*(x>=iqr[1] & x<iqr[2]) + (1-pd(x))*(x>=iqr[2] & x<=iqr[3])
         nes <- qnorm(p, lower.tail=F)*sign(x-iqr[2])
         switch(alternative,
