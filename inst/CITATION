@@ -1,0 +1,40 @@
+citHeader("Please, cite the most appropriate of the following references:")
+
+citEntry(entry="article",
+	author = c(person(c("James","C"),"Chen"),
+	           person(c("Mariano","J"),"Alvarez"),
+	           person("Flaminia","Talos"),
+	           person("Harshil","Dhruv"),
+	           person(c("Gabrielle","E"),"Rieckhof"),
+	           person("Archana","Iyer"),
+	           person(c("Kristin","L"),"Diefes"),
+		   person("Kenneth", "Aldape"),
+		   person("Michael", "Berens"),
+		   person(c("Michael","M"), "Shen"),
+		   person("Andrea", "Califano")),
+	title = "Identification of causal genetic drivers of human disease through systems-level analysis of regulatory networks",
+	journal = "Cell",
+	year = 2014,
+	volume = 159,
+	number = 2,
+	pages = "402--14",
+
+	textVersion = 
+	"Chen, J.C., Alvarez, M.J., Talos F., Dhruv, H., Rickhof, G.E., Iyer, A., Diefes, K.L., Aldape, K., Berens, M., Shen, M.M., and Califano A. (2015) Identification of causal genetic drivers of human disease through systems-level analysis of regulatory networks. Cell 159(2):402--14."
+)
+
+citeEntry(entry="article",
+	author = c(person(c("Mariano", "J"), "Alvarez"),
+		   person(c("James", "C"), "Chen"),
+		   person("Andrea", "Califano")),
+	title = "{DIGGIT}: a Bioconductor package to infer genetic variants driving cellular phenotypes",
+	journal = "Bioinformatics",
+	year = 2015,
+	volume = 31,
+	number = 24,
+	pages = "4032--4",
+
+	textVersion =
+	"Alvarez, M.J., Chen, J.C., and Califano, A. (2015) DIGGIT: a Bioconductor package to infer genetic variants driving cellular phenotypes. Bioinformatics 31(24):4032--4."
+)
+
